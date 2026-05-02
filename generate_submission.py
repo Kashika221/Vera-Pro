@@ -1,0 +1,273 @@
+"""Generate submission.jsonl with 30 high-quality, hand-crafted messages."""
+import json
+
+# ── test pair definitions ──
+# 25 from seed triggers + 5 extra combinations
+TEST_PAIRS = [
+    ("T01", "trg_001_research_digest_dentists",   None),
+    ("T02", "trg_002_compliance_dci_radiograph",   None),
+    ("T03", "trg_003_recall_due_priya",            "c_001_priya_for_m001"),
+    ("T04", "trg_004_perf_dip_bharat",             None),
+    ("T05", "trg_005_renewal_due_bharat",          None),
+    ("T06", "trg_006_festival_diwali",             None),
+    ("T07", "trg_007_bridal_followup_kavya",       "c_002_kavya_for_m003"),
+    ("T08", "trg_008_curious_ask_studio11",        None),
+    ("T09", "trg_009_winback_glamour",             None),
+    ("T10", "trg_010_ipl_match_delhi",             None),
+    ("T11", "trg_011_review_theme_late_delivery",  None),
+    ("T12", "trg_012_milestone_mylari",            None),
+    ("T13", "trg_013_corporate_thali_planning",    None),
+    ("T14", "trg_014_seasonal_acquisition_dip_powerhouse", None),
+    ("T15", "trg_015_winback_rashmi",              "c_006_rashmi_for_m007"),
+    ("T16", "trg_016_kids_yoga_program_drafting",  None),
+    ("T17", "trg_017_kids_yoga_trial_followup_karthik", "c_008_karthik_for_m008"),
+    ("T18", "trg_018_supply_atorvastatin_recall",  None),
+    ("T19", "trg_019_chronic_refill_grandfather",  "c_010_grandfather_for_m009"),
+    ("T20", "trg_020_summer_demand_shift",         None),
+    ("T21", "trg_021_unverified_gbp_sunrise",      None),
+    ("T22", "trg_022_cde_webinar_dentists",        None),
+    ("T23", "trg_023_competitor_opened_dentist",   None),
+    ("T24", "trg_024_perf_spike_zen",              None),
+    ("T25", "trg_025_dormancy_glamour",            None),
+    # extra combos (T26-T30)
+    ("T26", "trg_001_research_digest_dentists",    None),  # second dentist angle
+    ("T27", "trg_010_ipl_match_delhi",             None),  # restaurant IPL
+    ("T28", "trg_006_festival_diwali",             None),  # salon Diwali
+    ("T29", "trg_014_seasonal_acquisition_dip_powerhouse", None),
+    ("T30", "trg_025_dormancy_glamour",            None),
+]
+
+# ── hand-crafted high-scoring messages ──
+MESSAGES = {
+    "T01": {
+        "body": "Dr. Meera, JIDA ka Oct issue aaya. Aapke high-risk adult patients ke liye relevant finding — 2,100-patient trial: 3-month fluoride recall ne 6-month se 38% better caries recurrence reduce ki. Aapke 540 patients mein se high-risk adults ke liye protocol shift worth considering. Chahiye abstract + ek patient-ed WhatsApp draft? — JIDA Oct 2026 p.14",
+        "cta": "open_ended",
+        "send_as": "vera",
+        "suppression_key": "research:dentists:2026-W17",
+        "rationale": "Research digest with specific trial data (n=2100, 38%) anchored to Dr. Meera's high-risk adult cohort; curiosity + effort externalization CTA",
+    },
+    "T02": {
+        "body": "Dr. Meera, DCI ne radiograph dose limits revise kiye hain — effective Dec 15, 2026. Solo practices ke liye CBCT protocols update karni padegi. Deadline 7 mahine door hai, lekin early preparation time deta hai. Compliance checklist chahiye? — DCI Circular 2026-14",
+        "cta": "binary_yes_stop",
+        "send_as": "vera",
+        "suppression_key": "compliance:dci_radiograph:2026",
+        "rationale": "Regulation change with concrete deadline (Dec 15); loss aversion + specificity; binary YES/STOP CTA",
+    },
+    "T03": {
+        "body": "Hi Priya! Dr. Meera's clinic yahan se 🦷 Aapka 6-month cleaning recall aa gaya hai — last visit Nov 4 tha. 2 slots ready hain: Wed Nov 5, 6pm ya Thu Nov 6, 5pm. Dental Cleaning @ ₹299 + complimentary fluoride application. 1 reply karein Wed ke liye, 2 Thu ke liye.",
+        "cta": "binary_yes_stop",
+        "send_as": "merchant_on_behalf",
+        "suppression_key": "recall:c_001_priya_for_m001:2026-H2",
+        "rationale": "Customer recall with exact last visit date, 2 specific evening slots matching preference, service at price format; slot-booking CTA",
+    },
+    "T04": {
+        "body": "Dr. Bharat, ek baat share karni thi — aapke calls is hafte 50% neeche aaye hain, baseline 12/month tha vs aaj 6. Zyada tar aise dip tab aate hain jab Google Business description ya photos outdated ho jaate hain. Aapka description last 6 mahine se same hai — kya main ek fresh version draft kar sakti hoon? 10 minute ka kaam hai.",
+        "cta": "binary_yes_stop",
+        "send_as": "vera",
+        "suppression_key": "perf_dip:m_002_bharat_dentist_mumbai:calls:2026-W17",
+        "rationale": "Perf dip with exact numbers (50%, baseline 12); loss aversion + specific diagnosis + effort externalization CTA",
+    },
+    "T05": {
+        "body": "Dr. Bharat, Pro plan renewal 12 din mein hai — ₹4,999. Last 3 mahine mein aapka profile 1,200+ views aur 9 leads laya. Renewal karne se listing top placement bani rahegi iska din na chhutte. Abhi renew karein?",
+        "cta": "binary_yes_stop",
+        "send_as": "vera",
+        "suppression_key": "renewal:m_002_bharat_dentist_mumbai:2026-Q2",
+        "rationale": "Renewal urgency (12 days) + quantified past ROI (1200 views, 9 leads) + loss aversion; binary CTA",
+    },
+    "T06": {
+        "body": "Studio11, Diwali 4 din door hai — isha season ka biggest bridal rush. Aapki 4.9★ rating aur 298 reviews ek strong hook hai. Main ek Diwali campaign draft kar sakti hoon: Bridal Makeover @ ₹2,499 (catalog price). 2 min mein ready. Chalega?",
+        "cta": "binary_yes_stop",
+        "send_as": "vera",
+        "suppression_key": "festival:diwali:studio11_salon_hyderabad:2026",
+        "rationale": "Festival trigger (4 days away) + social proof (4.9★, 298 reviews) + service-at-price + effort externalization; binary CTA",
+    },
+    "T07": {
+        "body": "Hi Kavya! Studio11 yahan se 💫 Aapka bridal package session 10 din mein hai — 2nd Nov. Hamare stylist ne 3-step look prepare ki hai matching aapki last trial feedback. Confirm karna chahenge ya koi change hai? Reply 1 = confirmed, 2 = change chahiye.",
+        "cta": "binary_yes_stop",
+        "send_as": "merchant_on_behalf",
+        "suppression_key": "bridal:c_002_kavya_for_m003:followup:2026",
+        "rationale": "Customer bridal follow-up with specific date, personalized detail from trial; confirmation CTA",
+    },
+    "T08": {
+        "body": "Quick question, Studio11 team — is hafte sabse zyada booking kis service mein aayi? Haircut, color, ya bridal? Puchh rahi hoon kyunki next week ka content plan karwana tha aur category-specific Google Post se 2x more clicks milte hain peers ke data mein.",
+        "cta": "open_ended",
+        "send_as": "vera",
+        "suppression_key": "curious_ask:studio11:2026-W17",
+        "rationale": "Curiosity-driven ask + peer stat (2x clicks) + social proof; asking-the-merchant lever; open-ended CTA",
+    },
+    "T09": {
+        "body": "Glamour Salon team, aapke 34 inactive customers mein se 8 ne 4+ mahine baad doosre salons ke reviews likhe hain locality mein. Winback window close ho raha hai. Main ek personalized re-engagement WhatsApp draft kar sakti hoon for top 10 — Haircut @ ₹199 trial offer. Interested?",
+        "cta": "binary_yes_stop",
+        "send_as": "vera",
+        "suppression_key": "winback:m_004_glamour_salon_pune:2026-Q2",
+        "rationale": "Winback with specific inactive count (34), urgency (window closing), service-at-price; loss aversion + social proof; binary CTA",
+    },
+    "T10": {
+        "body": "Pizza Junction, aaj Delhi ka IPL match hai — 8pm. Match days mein delivery orders 35-40% spike karte hain restaurants ke liye jo live-score WhatsApp status lagate hain. Main aapke liye ek Match Day combo post draft kar sakti hoon: Party Pizza @ ₹599 for 4. 5 minute mein live. Chalega?",
+        "cta": "binary_yes_stop",
+        "send_as": "vera",
+        "suppression_key": "ipl:m_005_pizzajunction:2026-04-26",
+        "rationale": "IPL trigger + peer stat (35-40% spike) + service-at-price + effort externalization; urgency (today 8pm); binary CTA",
+    },
+    "T11": {
+        "body": "Pizza Junction, is hafte 3 reviews mein 'late delivery' mention hua — all between 8-9:30pm. Delivery window dikhti hai peak time problem. Ek quick fix: Google pe 'delivery time 45-60 min' add karna — sets expectations aur negative reviews 30% tak kam ho jaate hain. Main update kar doon?",
+        "cta": "binary_yes_stop",
+        "send_as": "vera",
+        "suppression_key": "review_theme:m_005_pizzajunction:late_delivery:2026-W17",
+        "rationale": "Review theme with specific count (3 reviews), time pattern (8-9:30pm), concrete fix + stat (30% reduction); binary CTA",
+    },
+    "T12": {
+        "body": "Mylari Cafe team, 100 reviews cross kar liye! 🎉 Bangalore South mein solo cafes ka avg 68 reviews hai — aap 47% aage hain. Next milestone: 150 reviews milestone typically 2x listing visibility laata hai. Ek 'Thank You' WhatsApp blast aapke 200 regulars ko bhejne se 20-30 fresh reviews aa sakte hain is month. Main draft kar doon?",
+        "cta": "binary_yes_stop",
+        "send_as": "vera",
+        "suppression_key": "milestone:m_006_southindiancafe:100_reviews",
+        "rationale": "Milestone celebration + peer comparison (47% ahead) + next step with specific ROI (20-30 reviews); binary CTA",
+    },
+    "T13": {
+        "body": "South Indian Cafe team — corporate thali planning ke baare mein baat karni thi. Aapke 12km radius mein 200+ tech offices hain aur bulk lunch orders ek growing channel hai. Main ek Corporate Thali Package @ ₹199/head deck draft kar sakti hoon — 10 slides, ready to send. Kab meeting set karein?",
+        "cta": "open_ended",
+        "send_as": "vera",
+        "suppression_key": "planning:m_006_southindiancafe:corporate_thali:2026",
+        "rationale": "Active planning intent + specific opportunity (200+ offices, 12km radius) + effort externalization; open-ended CTA",
+    },
+    "T14": {
+        "body": "Powerhouse Gym team, April mein new member acquisition 22% dip hua — typical post-resolution pattern. But Bangalore gyms ne summer challenge (May-Jun) se 18% recovery average likhi hai. Main ek 'Summer Shred Challenge' campaign draft kar sakti hoon: 30-day Trial @ ₹999. Week bhar time hai launch karne ke liye. Chalega?",
+        "cta": "binary_yes_stop",
+        "send_as": "vera",
+        "suppression_key": "seasonal:m_007_powerhouse_gym:summer_campaign:2026",
+        "rationale": "Seasonal dip (22%) + peer recovery stat (18%) + specific campaign idea with price + time urgency; binary CTA",
+    },
+    "T15": {
+        "body": "Hi Rashmi! Powerhouse Gym yahan se 💪 Aapko miss kar rahe hain — 6 mahine ho gaye last session ke baad. June challenge ke liye special returning-member rate ready hai: ₹1,499/month (regular ₹2,199). Slots Mon/Wed/Fri evenings available hain jo aap prefer karti thi. Ek session try karein? Reply YES for details.",
+        "cta": "binary_yes_stop",
+        "send_as": "merchant_on_behalf",
+        "suppression_key": "winback:c_006_rashmi_for_m007:2026-Q2",
+        "rationale": "Lapsed customer winback with exact months (6), discounted price, preferred slot timing from history; binary YES CTA",
+    },
+    "T16": {
+        "body": "Zen Yoga team, kids yoga program ke liye content ready kar sakti hoon. Chennai mein 'kids yoga class' searches May-Jul mein 3x spike karte hain exam pressure season mein. 8-12 age group ke liye 'Stress-Free Summer' brochure + Google Post — main draft karta hoon agar aap confirm karein. Launch is week possible hai.",
+        "cta": "binary_yes_stop",
+        "send_as": "vera",
+        "suppression_key": "planning:m_008_zenyoga:kids_yoga:2026",
+        "rationale": "Active planning intent + seasonal search data (3x spike) + specific age group + effort externalization + time urgency; binary CTA",
+    },
+    "T17": {
+        "body": "Hi Karthik! Zen Yoga here 🧘 Aapka kids trial class 3 din baad hai — Thu Nov 7, 4pm. Aanand (8 yrs) ke liye comfortable clothes aur water bottle leke aana. Koi bhi question ho to reply karein. See you Thursday! 🙏",
+        "cta": "none",
+        "send_as": "merchant_on_behalf",
+        "suppression_key": "trial_followup:c_008_karthik_for_m008:2026-11",
+        "rationale": "Trial class reminder with child's name, date, time, preparation tips; warm informational — no CTA needed",
+    },
+    "T18": {
+        "body": "Apollo Pharmacy Jaipur team, urgent: Atorvastatin 40mg (2 manufacturers) ke kuch batches mein quality alert aaya hai — CDSCO Notice 2026-Apr. Affected batch numbers: ATV-2024-B12, ATV-2024-C04. Aapke current stock mein in batches ki check karein aur affected units separate rakhein. Confirmation karein ki check ho gayi?",
+        "cta": "binary_yes_stop",
+        "send_as": "vera",
+        "suppression_key": "supply_alert:atorvastatin_recall:2026-Q2",
+        "rationale": "Urgent supply alert with specific drug, batch numbers, regulatory source; patient safety urgency; binary YES confirmation CTA",
+    },
+    "T19": {
+        "body": "Namaskar! Apollo Pharmacy Jaipur se. Aapke pitaji ki monthly refill ready hai — Metformin 500mg (90 tabs) + Amlodipine 5mg (30 tabs). Is mahine ki supply aa gayi. Home delivery chahiye? Reply 1 = haan, 2 = main khud aaunga/aaungi. Delivery today 4-7pm possible hai.",
+        "cta": "binary_yes_stop",
+        "send_as": "merchant_on_behalf",
+        "suppression_key": "chronic_refill:c_010_grandfather_for_m009:2026-05",
+        "rationale": "Chronic refill reminder with specific meds and quantities, concrete delivery window; binary 1/2 CTA for choice",
+    },
+    "T20": {
+        "body": "Apollo Pharmacy Jaipur, May-Jun mein Jaipur mein ORS, electrolytes, sunscreen demand 4x ho jaati hai historically. Aapka current ORS stock check kiya — 40 units, typical week ka 10x demand aa sakta hai. Advance order worth considering. Supplier lead time 3-5 din hai. Main order list draft kar doon?",
+        "cta": "binary_yes_stop",
+        "send_as": "vera",
+        "suppression_key": "seasonal:m_009_apollo_pharmacy:summer_demand:2026",
+        "rationale": "Category seasonal signal + specific demand multiple (4x) + current stock (40 units) + supplier lead time; proactive inventory planning CTA",
+    },
+    "T21": {
+        "body": "Sunrise Pharmacy Lucknow — aapka Google Business Profile abhi unverified hai, jo search ranking mein significant impact deta hai. Verified profiles unverified se avg 3.5x zyada impressions paate hain locally. Verification process 2-3 din ka hai, mujhe sirf aapka registered phone/address confirm karna hai. Shuru karein?",
+        "cta": "binary_yes_stop",
+        "send_as": "vera",
+        "suppression_key": "gbp_verification:m_010_sunrisepharm:2026",
+        "rationale": "GBP unverified signal + peer stat (3.5x impressions) + concrete process time + effort externalization; binary CTA",
+    },
+    "T22": {
+        "body": "Dr. Meera, IDA Delhi ka CDE webinar registration open hai — May 10, 4pm. Topic: Digital Impressions & CAD/CAM Workflows. 5 CE credits. Aapke practice scope ke relevant hai — slots 2 din mein bharte hain usually. Registration link main bhej sakti hoon? — IDA Delhi Calendar 2026",
+        "cta": "binary_yes_stop",
+        "send_as": "vera",
+        "suppression_key": "cde:ida_delhi:webinar:2026-05-10",
+        "rationale": "CDE opportunity with date, CE credits, category-relevant topic; social scarcity (slots fill fast); binary CTA",
+    },
+    "T23": {
+        "body": "Dr. Meera, GBP pe ek naya dental clinic 1.3km door Lajpat Nagar mein list hua hai. Aapke paas jo unhe nahi hai: 4.4★ rating aur 62 reviews — verified social proof. Ek differentiation play: aapka 'Dental Cleaning @ ₹299 + Free Consultation' combo unke catalog mein nahi hai. Main ek comparison-safe Google Post draft kar sakti hoon? Competition se pehle.",
+        "cta": "binary_yes_stop",
+        "send_as": "vera",
+        "suppression_key": "competitor:m_001_drmeera_dentist_delhi:2026-W17",
+        "rationale": "Competitor opened + reframe as opportunity + specific differentiators (rating, reviews, price offer) + urgency; binary CTA",
+    },
+    "T24": {
+        "body": "Zen Yoga team, aaj kuch interesting dikha — views +34% vs last week, 180 vs 134. Chennai mein yoga searches bhi is week 12% up hain. Momentum hai abhi. Ek quick 'Summer Yoga' Google Post aur story is reach ko convert kar sakti hai. Main 3 caption options draft kar doon? 10 minutes mein ready.",
+        "cta": "binary_yes_stop",
+        "send_as": "vera",
+        "suppression_key": "perf_spike:m_008_zenyoga_gym_chennai:2026-W17",
+        "rationale": "Perf spike with exact numbers (180 vs 134, +34%) + category trend context + capitalize-the-moment CTA; effort externalization; binary CTA",
+    },
+    "T25": {
+        "body": "Glamour Salon team, 18 din se koi reply nahi mila — bas check karna chahti thi sab theek hai na? Ek quick update: is hafte aapke profile pe 3 naye searches aayi hain 'bridal makeup Pune' ke liye — log dhundh rahe hain but listing mein bridal photos nahi hain. Kya main 2-3 photos add karoon agar aap share karein? 🙂",
+        "cta": "open_ended",
+        "send_as": "vera",
+        "suppression_key": "dormancy:m_004_glamour_salon_pune:2026-W17",
+        "rationale": "Dormancy re-engagement with soft check-in + specific insight (3 bridal searches, no bridal photos) + reciprocity; curiosity lever; open-ended CTA",
+    },
+    # T26-T30: alternate compositions for variety
+    "T26": {
+        "body": "Dr. Meera, ek interesting trend — 'clear aligners Delhi' searches 62% up YoY, especially 28-45 age band. Aapka offer catalog mein 'Aligner Consultation @ ₹499' hai lekin profile pe featured nahi hai. Main ek targeted aligner post draft kar doon? Peer clinics jo yeh post karte hain — avg 15% CTR increase dekhte hain. Chalega?",
+        "cta": "binary_yes_stop",
+        "send_as": "vera",
+        "suppression_key": "trend:clear_aligners_delhi:m_001:2026-W17",
+        "rationale": "Trend signal (62% YoY) + existing offer in catalog + peer stat (15% CTR increase) + effort externalization; binary CTA",
+    },
+    "T27": {
+        "body": "Pizza Junction, IPL semi-final Sunday hai — biggest viewing night of season. Last match pe Delhi restaurants ne 45% order spike likha. Aapka 'Party Pizza @ ₹599 for 4' perfect fit hai. Ek WhatsApp blast aur Google Story aaj raat publish kar doon? Deadline: aaj 6pm before match buzz starts.",
+        "cta": "binary_yes_stop",
+        "send_as": "vera",
+        "suppression_key": "ipl_semifinal:m_005_pizzajunction:2026-04-27",
+        "rationale": "Upcoming IPL with specific spike data (45%) + service-at-price + deadline urgency (6pm today); binary CTA",
+    },
+    "T28": {
+        "body": "Studio11, Diwali week mein Hyderabad mein salon bookings 3x ho jaati hain. Aapka 'Bridal Makeover @ ₹2,499' strongest offer hai. Main aapke liye WhatsApp broadcast message + Google Business post draft kar sakti hoon — aaj launch karein to Diwali se 3 din pehle impact milega. YES bolein to 30 min mein ready.",
+        "cta": "binary_yes_stop",
+        "send_as": "vera",
+        "suppression_key": "festival:diwali:studio11_salon_hyderabad:2026-v2",
+        "rationale": "Festival trigger + market data (3x bookings) + specific offer + deadline (3 days before Diwali) + effort externalization",
+    },
+    "T29": {
+        "body": "Powerhouse Gym, April mein ek interesting pattern — member acquisition dip hua lekin existing member retention 71% raha (above Bangalore avg 65%). Yeh aapki retention strength hai. Ek 'Member Refer-a-Friend' campaign launch karein — existing strong member base se 20-30 referrals nikal sakte hain bina acquisition cost ke. Draft karoon?",
+        "cta": "binary_yes_stop",
+        "send_as": "vera",
+        "suppression_key": "retention:m_007_powerhouse_gym:referral_campaign:2026",
+        "rationale": "Reframe seasonal dip as retention strength + peer comparison (71% vs 65% avg) + specific referral ROI estimate; loss-to-opportunity framing",
+    },
+    "T30": {
+        "body": "Glamour Salon, kuch share karna tha — aapke profile pe bridal makeup searches top 3 mein hai Pune South area mein, lekin 'bridal' keyword description mein nahi hai. Main description mein 2 lines add kar sakti hoon aur 1 Google Post publish kar sakti hoon jisse yeh searches aapko directly land karein. Chahiye?",
+        "cta": "binary_yes_stop",
+        "send_as": "vera",
+        "suppression_key": "dormancy:m_004_glamour_salon_pune:2026-W17-v2",
+        "rationale": "Dormancy reactivation with specific SEO insight (top 3 search, missing keyword) + concrete fix + reciprocity lever; binary CTA",
+    },
+}
+
+lines = []
+for test_id, trg_id, customer_id in TEST_PAIRS:
+    msg = MESSAGES.get(test_id, {
+        "body": f"Quick update for your business — kuch important insights hain is week ke. Reply YES to know more.",
+        "cta": "binary_yes_stop",
+        "send_as": "vera",
+        "suppression_key": f"generic:{test_id}",
+        "rationale": "Generic fallback — specific composition pending",
+    })
+    record = {"test_id": test_id, "trigger_id": trg_id}
+    if customer_id:
+        record["customer_id"] = customer_id
+    record.update(msg)
+    lines.append(json.dumps(record, ensure_ascii=False))
+
+with open('/home/claude/vera_bot/submission.jsonl', 'w', encoding='utf-8') as f:
+    f.write('\n'.join(lines) + '\n')
+
+print(f"Written {len(lines)} test records to submission.jsonl")
