@@ -688,3 +688,7 @@ async def teardown():
     tick_actioned.clear()
     log.info("State wiped on teardown")
     return {"status": "wiped"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("bot:app", host="0.0.0.0", port=8080, reload=True)
